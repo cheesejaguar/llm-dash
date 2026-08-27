@@ -1,0 +1,13 @@
+{
+  "name": "llm-dash",
+  "version": "1.0.0",
+  "description": "LLM Cluster Dashboard for NVIDIA Grace Hopper nodes",
+  "main": "server.js",
+  "license": "MIT",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0"
+  }
+}

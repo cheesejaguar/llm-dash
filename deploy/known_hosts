@@ -1,0 +1,9 @@
+# Template — replace HEAD_IP / WORKER_IP below with your own nodes' real
+# addresses and regenerate the key lines for your own hardware, e.g.:
+#   ssh-keyscan -t ed25519 <head-ip> <worker-ip>
+# Verify the fingerprints out-of-band (console/BMC access) before trusting
+# them — this file is what makes StrictHostKeyChecking=yes actually mean
+# something. Treat your real, populated copy as node-specific config, not
+# something to publish alongside a public repo.
+HEAD_IP ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEBNiYUD2LBiqxL584q0V+ZReUGMWoYjrgCsvnPK+/am
+WORKER_IP ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBeCfbwrc+DEWvPqRn0sckrI0aJFBSIsnhwsR2qpkvtm

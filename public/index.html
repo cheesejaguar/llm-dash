@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>DGX Cluster — LLM Dashboard</title>
+<style>
+:root{
+  --bg:#0b0d12;
+  --surface:#12151d;
+  --surface-2:#1a1e2a;
+  --border:rgba(255,255,255,0.07);
+  --grid:#1c202c;
+  --text:#e8eaf0;
+  --text-2:#9ba1b0;
+  --muted:#646b7c;
+  --accent:#818cf8;
+  --accent-dim:rgba(99,102,241,0.13);
+  --s1:#3987e5;
+  --s2:#199e70;
+  --s3:#c98500;
+  --s4:#008300;
+  --ok:#22c55e;
+  --warn:#f0b429;
+  --crit:#f0565a;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:var(--bg)}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  font-size:14px;
+  line-height:1.4;
+  -webkit-font-smoothing:antialiased;
+}
+.hidden{display:none !important}
+
+/* ---------- header ---------- */
+header.top{
+  position:sticky;top:0;z-index:10;
+  height:52px;
+  background:var(--bg);
+  border-bottom:1px solid var(--border);
+}
+.hwrap{
+  max-width:1880px;margin:0 auto;padding:0 20px;height:52px;
+  display:flex;align-items:center;justify-content:space-between;gap:16px;
+}
+.hleft{display:flex;align-items:center;gap:14px;min-width:0}
+.brand{font-size:14px;font-weight:700;letter-spacing:.05em;white-space:nowrap}
+.brand .dia{color:var(--accent)}
+.hmodel{font-size:12px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hright{display:flex;align-items:center;gap:14px;flex:none}
+.clock{font-size:13px;font-weight:600;color:var(--text-2);font-variant-numeric:tabular-nums}
+.pill{
+  display:inline-flex;align-items:center;gap:7px;
+  font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+  padding:4px 10px;border-radius:999px;
+  border:1px solid var(--border);background:var(--surface-2);color:var(--warn);
+  font-variant-numeric:tabular-nums;
+}
+.pdot{width:8px;height:8px;border-radius:50%;background:var(--warn);flex:none}
+.pill.live{color:var(--ok)}
+.pill.live .pdot{
+  background:var(--ok);
+  box-shadow:0 0 10px var(--ok);
+  animation:pulse 2.4s ease-in-out infinite;
+}
+body.stale .pill .pdot,body.reconnecting .pill .pdot{animation-play-state:paused}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+/* ---------- grid + cards ---------- */
+.grid{
+  display:grid;grid-template-columns:repeat(12,1fr);gap:16px;
+  max-width:1880px;margin:0 auto;padding:20px;
+}
+.span-2{grid-column:span 2}
+.span-3{grid-column:span 3}
+.span-4{grid-column:span 4}
+.span-6{grid-column:span 6}
+.span-8{grid-column:span 8}
+.card{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:16px;
+  display:flex;flex-direction:column;
+  min-width:0;
+}
+body.stale .card,body.reconnecting .card{opacity:.7}
+.card.offline{opacity:.55;filter:grayscale(.4)}
+.card-h{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.card-h h2,.tlabel{
+  font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--muted);
+}
+.keys{display:flex;align-items:center;gap:12px;flex:none}
+.key{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--text-2);white-space:nowrap}
+.sw{width:10px;height:3px;border-radius:1.5px;display:inline-block;flex:none}
+.sw.c-s1{background:var(--s1)}
+.sw.c-s2{background:var(--s2)}
+.sw.c-s3{background:var(--s3)}
+.sw.c-s4{background:var(--s4)}
+.sw.c-ac{background:var(--accent)}
+
+/* chart containers: fixed heights, no reflow */
+.ch{position:relative;width:100%;min-width:0}
+.ch-260{height:260px}
+.ch-200{height:200px}
+.ch-160{height:160px}
+.ch-120{height:120px}
+
+/* ---------- chips / dots / badges ---------- */
+.chip{
+  display:inline-flex;align-items:center;gap:5px;
+  font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+  padding:2px 8px;border-radius:999px;
+  border:1px solid var(--border);background:var(--surface-2);color:var(--text-2);
+  white-space:nowrap;font-variant-numeric:tabular-nums;
+}
+.chip.ok{color:var(--ok);background:rgba(34,197,94,.10);border-color:rgba(34,197,94,.25)}
+.chip.warn{color:var(--warn);background:rgba(240,180,41,.10);border-color:rgba(240,180,41,.28)}
+.chip.crit{color:var(--crit);background:rgba(240,86,90,.12);border-color:rgba(240,86,90,.30)}
+.badge{
+  font-size:9px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+  padding:2px 6px;border-radius:4px;color:var(--text-2);
+  background:var(--surface-2);border:1px solid var(--border);
+}
+.ndot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--muted)}
+.ndot.ok{background:var(--ok);box-shadow:0 0 10px var(--ok)}
+.ndot.crit{background:var(--crit);box-shadow:0 0 10px var(--crit)}
+.sdot{width:6px;height:6px;border-radius:50%;display:inline-block;flex:none;background:transparent}
+.sdot.ok{background:var(--ok)}
+.sdot.warn{background:var(--warn)}
+.sdot.crit{background:var(--crit)}
+
+/* ---------- KPI tiles ---------- */
+.tile{min-height:120px}
+.tile-h{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;min-height:18px}
+.vrow{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
+.v{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
+.unit{font-size:12px;font-weight:400;color:var(--text-2)}
+.tsub{font-size:12px;color:var(--text-2);margin-top:4px;font-variant-numeric:tabular-nums}
+.tile.hero{border-top:2px solid var(--accent)}
+.tile.hero .v{font-size:44px}
+.spark{display:block;width:100%;height:28px;margin-top:auto;padding-top:6px;box-sizing:content-box}
+
+/* ---------- meters ---------- */
+.meter{
+  height:6px;border-radius:3px;background:var(--surface-2);
+  overflow:hidden;flex:1 1 auto;min-width:0;
+}
+.meter-fill{
+  height:100%;width:100%;border-radius:3px;background:var(--accent);
+  transform:scaleX(0);transform-origin:left center;
+  transition:transform .4s cubic-bezier(.22,1,.36,1);
+}
+.mrow{margin-top:10px}
+.mlabel{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:5px;
+}
+.mlabel .mval{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums;text-transform:none;letter-spacing:0;display:inline-flex;align-items:center;gap:6px;font-size:12px}
+
+/* ---------- node cards ---------- */
+.node-h{display:flex;align-items:center;gap:8px;margin-bottom:2px;flex-wrap:wrap}
+.node-h h2{font-size:14px;font-weight:700;color:var(--text);letter-spacing:0;text-transform:none;font-variant-numeric:tabular-nums}
+.node-sub{font-size:11px;color:var(--muted);margin-bottom:10px;font-variant-numeric:tabular-nums}
+.srows{display:flex;flex-direction:column}
+.srow{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:3px 0}
+.slabel{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.sval{display:inline-flex;align-items:center;gap:6px;font-variant-numeric:tabular-nums}
+.sval b{font-size:14px;font-weight:600;color:var(--text)}
+.cpu-line{display:flex;align-items:center;gap:8px}
+.spark-sm{display:block;width:72px;height:18px;flex:none}
+.chiprow{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
+
+/* ---------- speculative decode panel ---------- */
+.spec-big{display:flex;align-items:baseline;gap:8px;margin-bottom:4px}
+.spec-big .v{font-size:34px}
+.spec-mean{font-size:12px;color:var(--text-2);margin-bottom:14px;font-variant-numeric:tabular-nums}
+.spec-mean b{color:var(--text);font-weight:600}
+.pp{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.pp .slabel{width:20px;flex:none}
+.ppv{font-size:12px;font-weight:600;color:var(--text);width:38px;text-align:right;flex:none;font-variant-numeric:tabular-nums}
+.spec-prefix{font-size:12px;color:var(--text-2);margin-top:auto;padding-top:10px;font-variant-numeric:tabular-nums}
+
+/* ---------- breakpoints ---------- */
+@media (max-width:1279px){
+  .grid{grid-template-columns:repeat(6,1fr)}
+  .span-2{grid-column:span 2}
+  .span-3{grid-column:span 3}
+  .span-4,.span-6,.span-8{grid-column:span 6}
+}
+@media (max-width:859px){
+  .grid{grid-template-columns:repeat(2,1fr)}
+  .span-2{grid-column:span 1}
+  .span-3,.span-4,.span-6,.span-8{grid-column:span 2}
+  .tile.hero .v{font-size:36px}
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="hwrap">
+    <div class="hleft">
+      <span class="brand"><span class="dia">◈</span> DGX CLUSTER</span>
+      <span class="hmodel" id="hdr-model">—</span>
+      <span class="chip" id="hdr-ctx">ctx —</span>
+    </div>
+    <div class="hright">
+      <span class="pill" id="pill"><i class="pdot" id="pill-dot"></i><span id="pill-txt">CONNECTING</span></span>
+      <span class="clock" id="clock">--:--</span>
+    </div>
+  </div>
+</header>
+
+<main class="grid" id="main">
+
+  <!-- ============ row 2: KPI band ============ -->
+  <section class="card tile hero span-2">
+    <div class="tile-h"><span class="tlabel">Generation</span><span class="chip crit hidden" id="eng-chip">Engine Down</span></div>
+    <div class="vrow"><span class="v" id="g-val">—</span><span class="unit">tok/s</span></div>
+    <canvas class="spark" id="sp-gen"></canvas>
+  </section>
+
+  <section class="card tile span-2">
+    <div class="tile-h"><span class="tlabel">Prefill (cache)</span></div>
+    <div class="vrow"><span class="v" id="p-val">—</span><span class="unit">tok/s</span></div>
+    <canvas class="spark" id="sp-prompt"></canvas>
+  </section>
+
+  <section class="card tile span-2">
+    <div class="tile-h"><span class="tlabel">Requests</span><span class="chip warn hidden" id="r-sat">Saturated</span></div>
+    <div class="vrow"><span class="v" id="r-val">—</span><span class="chip" id="r-wait">— wait</span></div>
+    <canvas class="spark" id="sp-run"></canvas>
+  </section>
+
+  <section class="card tile span-2">
+    <div class="tile-h"><span class="tlabel">TTFT</span></div>
+    <div class="vrow"><span class="v" id="t-val">—</span><span class="unit">s</span></div>
+    <canvas class="spark" id="sp-ttft"></canvas>
+  </section>
+
+  <section class="card tile span-2">
+    <div class="tile-h"><span class="tlabel">Decode / Stream</span></div>
+    <div class="vrow"><span class="v" id="d-val">—</span><span class="unit">tok/s</span></div>
+    <div class="tsub" id="d-sub">(— ms)</div>
+  </section>
+
+  <section class="card tile span-2">
+    <div class="tile-h"><span class="tlabel">KV Cache</span></div>
+    <div class="mrow" style="margin-top:2px">
+      <div class="meter"><div class="meter-fill" id="kv-fill"></div></div>
+    </div>
+    <div class="vrow" style="margin-top:8px"><span class="v" id="kv-pct">—</span><i class="sdot" id="kv-dot"></i></div>
+    <div class="tsub" id="kv-tok">— / 930K tok</div>
+  </section>
+
+  <!-- ============ row 3: throughput (small multiples — magnitudes differ
+       ~40x between series, so each gets its own single axis rather than a
+       dual-axis chart or a stack) ============ -->
+  <section class="card span-4">
+    <div class="card-h">
+      <h2>Generation</h2>
+      <div class="keys"><span class="key"><i class="sw c-s1"></i>tok/s</span></div>
+    </div>
+    <div class="ch ch-200"><canvas id="c-gen"></canvas></div>
+  </section>
+
+  <section class="card span-4">
+    <div class="card-h">
+      <h2>Prefill — Cache Hit</h2>
+      <div class="keys"><span class="key"><i class="sw c-s2"></i>tok/s</span></div>
+    </div>
+    <div class="ch ch-200"><canvas id="c-cache"></canvas></div>
+  </section>
+
+  <section class="card span-4">
+    <div class="card-h">
+      <h2>Prefill — Compute</h2>
+      <div class="keys"><span class="key"><i class="sw c-s4"></i>tok/s</span></div>
+    </div>
+    <div class="ch ch-200"><canvas id="c-compute"></canvas></div>
+  </section>
+
+  <!-- ============ row 3b: requests + kv cache ============ -->
+  <section class="card span-6">
+    <div class="card-h">
+      <h2>Requests</h2>
+      <div class="keys">
+        <span class="key"><i class="sw c-s1"></i>running</span>
+        <span class="key"><i class="sw c-s3"></i>waiting</span>
+      </div>
+    </div>
+    <div class="ch ch-120"><canvas id="c-req"></canvas></div>
+  </section>
+  <section class="card span-6">
+    <div class="card-h">
+      <h2>KV Cache %</h2>
+      <div class="keys"><span class="key"><i class="sw c-ac"></i>used</span></div>
+    </div>
+    <div class="ch ch-120"><canvas id="c-kv"></canvas></div>
+  </section>
+
+  <!-- ============ row 4: acceptance + spec panel ============ -->
+  <section class="card span-8">
+    <div class="card-h">
+      <h2>Spec-Decode Acceptance %</h2>
+      <div class="keys"><span class="key"><i class="sw c-s1"></i>acceptance</span></div>
+    </div>
+    <div class="ch ch-200"><canvas id="c-acc"></canvas></div>
+  </section>
+
+  <section class="card span-4">
+    <div class="card-h"><h2>Speculative Decode</h2></div>
+    <div class="spec-big"><span class="v" id="sd-accept">—</span><span class="unit">% accept</span></div>
+    <div class="spec-mean">mean len <b id="sd-mean">—</b> / 4.0</div>
+    <div class="pp"><span class="slabel">p1</span><div class="meter"><div class="meter-fill" id="pp0f"></div></div><span class="ppv" id="pp0v">—</span></div>
+    <div class="pp"><span class="slabel">p2</span><div class="meter"><div class="meter-fill" id="pp1f"></div></div><span class="ppv" id="pp1v">—</span></div>
+    <div class="pp"><span class="slabel">p3</span><div class="meter"><div class="meter-fill" id="pp2f"></div></div><span class="ppv" id="pp2v">—</span></div>
+    <div class="spec-prefix" id="sd-prefix">prefix cache — (1m) · — (life)</div>
+  </section>
+
+  <!-- ============ row 5: nodes + temp/power ============ -->
+  <section class="card span-3" id="node-0">
+    <div class="node-h">
+      <i class="ndot" id="n0-dot"></i>
+      <h2 id="n0-name">spark-9e60</h2>
+      <span class="badge" id="n0-badge">HEAD</span>
+      <span class="chip crit hidden" id="n0-off">Offline</span>
+    </div>
+    <div class="node-sub" id="n0-sub">NVIDIA GB10</div>
+    <div class="srows">
+      <div class="srow"><span class="slabel">Temp</span><span class="sval"><b id="n0-temp">—</b><span class="unit">°C</span><i class="sdot" id="n0-tempdot"></i></span></div>
+      <div class="srow"><span class="slabel">Power</span><span class="sval"><b id="n0-power">—</b><span class="unit">W</span></span></div>
+      <div class="srow"><span class="slabel">Util</span><span class="sval"><b id="n0-util">—</b><span class="unit">%</span></span></div>
+      <div class="srow"><span class="slabel">Clock</span><span class="sval"><b id="n0-clock">—</b><span class="unit">MHz</span></span></div>
+    </div>
+    <div class="mrow">
+      <div class="mlabel"><span>Mem</span><span class="mval"><span id="n0-memtxt">—</span><i class="sdot" id="n0-memdot"></i></span></div>
+      <div class="meter"><div class="meter-fill" id="n0-memfill"></div></div>
+    </div>
+    <div class="mrow">
+      <div class="mlabel"><span>CPU</span><span class="mval" id="n0-cputxt">—</span></div>
+      <div class="cpu-line">
+        <div class="meter"><div class="meter-fill" id="n0-cpufill"></div></div>
+        <canvas class="spark-sm" id="sp-cpu0"></canvas>
+      </div>
+    </div>
+    <div class="chiprow"><span class="chip" id="n0-ctr"><span id="n0-ctrtxt">vllm-ds4-head —</span></span></div>
+  </section>
+
+  <section class="card span-3" id="node-1">
+    <div class="node-h">
+      <i class="ndot" id="n1-dot"></i>
+      <h2 id="n1-name">spark-0c6b</h2>
+      <span class="badge" id="n1-badge">WORKER</span>
+      <span class="chip crit hidden" id="n1-off">Offline</span>
+    </div>
+    <div class="node-sub" id="n1-sub">NVIDIA GB10</div>
+    <div class="srows">
+      <div class="srow"><span class="slabel">Temp</span><span class="sval"><b id="n1-temp">—</b><span class="unit">°C</span><i class="sdot" id="n1-tempdot"></i></span></div>
+      <div class="srow"><span class="slabel">Power</span><span class="sval"><b id="n1-power">—</b><span class="unit">W</span></span></div>
+      <div class="srow"><span class="slabel">Util</span><span class="sval"><b id="n1-util">—</b><span class="unit">%</span></span></div>
+      <div class="srow"><span class="slabel">Clock</span><span class="sval"><b id="n1-clock">—</b><span class="unit">MHz</span></span></div>
+    </div>
+    <div class="mrow">
+      <div class="mlabel"><span>Mem</span><span class="mval"><span id="n1-memtxt">—</span><i class="sdot" id="n1-memdot"></i></span></div>
+      <div class="meter"><div class="meter-fill" id="n1-memfill"></div></div>
+    </div>
+    <div class="mrow">
+      <div class="mlabel"><span>CPU</span><span class="mval" id="n1-cputxt">—</span></div>
+      <div class="cpu-line">
+        <div class="meter"><div class="meter-fill" id="n1-cpufill"></div></div>
+        <canvas class="spark-sm" id="sp-cpu1"></canvas>
+      </div>
+    </div>
+    <div class="chiprow"><span class="chip" id="n1-ctr"><span id="n1-ctrtxt">vllm-ds4-worker —</span></span></div>
+  </section>
+
+  <section class="card span-3">
+    <div class="card-h">
+      <h2>GPU Temp °C</h2>
+      <div class="keys">
+        <span class="key"><i class="sw c-s1"></i>head</span>
+        <span class="key"><i class="sw c-s2"></i>worker</span>
+      </div>
+    </div>
+    <div class="ch ch-160"><canvas id="c-temp"></canvas></div>
+  </section>
+
+  <section class="card span-3">
+    <div class="card-h">
+      <h2>GPU Power W</h2>
+      <div class="keys">
+        <span class="key"><i class="sw c-s1"></i>head</span>
+        <span class="key"><i class="sw c-s2"></i>worker</span>
+      </div>
+    </div>
+    <div class="ch ch-160"><canvas id="c-pow"></canvas></div>
+  </section>
+
+</main>
+
+<script src="./chart.umd.min.js"></script>
+<script src="./app.js"></script>
+</body>
+</html>
